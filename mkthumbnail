@@ -1,0 +1,27 @@
+#!/bin/bash
+
+set -eu
+
+declare -r  couchdb="${COUCHDB:-http://localhost:5984/camera}"
+declare -r  ts="${THUMBNAIL_SIZE:-256}"
+declare -r  gifduration='00:10'
+
+declare -r  path="$(realpath "$1")"
+declare -r  directory="$(dirname "$path")"
+declare -r  file="$(basename "$path")"
+declare -r  filename="${file%.*}"
+declare -r  extension="${file##*.}"
+declare -r  thumbfile="${directory}/${filename}.thumb.gif"
+declare -rl mimetype="$(exiftool "$path" -j | jq -r '.[].MIMEType')"
+
+if [[ ! -f $thumbfile ]]
+then
+  case "$mimetype" in
+    image/*) ( convert "$path" -scale "${ts}x${ts}" "$thumbfile" ) &>/dev/null ;;
+    video/*) ( ffmpeg -i "file:$path" -to "$gifduration" \
+                 -filter_complex "scale=w=${ts}:h=${ts}:force_original_aspect_ratio=decrease" \
+                 "$thumbfile" -hide_banner ) &>/dev/null ;;
+  esac
+fi
+
+echo "$thumbfile"
